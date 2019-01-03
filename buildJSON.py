@@ -232,7 +232,7 @@ def ethernetPort(flexPod):
         pcName = click.prompt("PortChannel " + pcA + " Name: ", default = pcName)
         portBObject = {"module": "ucsmsdk.mometa.fabric.FabricEthLanPc","class": "FabricEthLanPc","properties": {"parent_mo_or_dn": "fabric/lan/B","port_id": str(pcB), "name": str(pcName)},"message": "portchannel on FI-B"}
         for port in portChannelPort:
-            portChannelChildren.append({"module": "ucsmsdk.mometa.fabric.FabricEthLanPcEp","class": "FabricEthLanPcEp","properties": {"eth_link_profile_name": "default", "name": "", "auto_negotiate": "yes", "usr_lbl": "", "slot_id": "1", "admin_state":"enabled", "port_id": str(port)},"message": "adding " + port + "to PortChannel"})
+            portChannelChildren.append({"module": "ucsmsdk.mometa.fabric.FabricEthLanPcEp","class": "FabricEthLanPcEp","properties": {"eth_link_profile_name": "default", "name": "", "auto_negotiate": "yes", "usr_lbl": "", "slot_id": "1", "admin_state":"enabled", "port_id": str(port)},"message": "adding " + port + " to PortChannel"})
         portAObject["children"]= portChannelChildren
         portBObject["children"]= portChannelChildren
         objectTemp.append(portAObject)
@@ -255,7 +255,10 @@ def vlans(flexPod, vlan):
     nativeVlan = {}
 #    vlan = vlan
 
-
+    print("###################################")
+    print("#         Input Vlans             #")
+    print("###################################")
+    print()
     while True:
         vlanInp = input("Enter VLAN ID? [Press Enter if done]: ")
         if vlanInp == "":
@@ -283,18 +286,43 @@ def vlans(flexPod, vlan):
     flexPod['objects'] = objectTemp
     return(flexPod)
 
-def vnic(flexPod, vlan):
+def vnic(flexPod, vlan, datastore):
     objectTemp = flexPod['objects']
     vlanId = []
     tempVlan = vlan
     dvsChildren = []
     dvsObject= {}
+
     print()
     for key, vlaue in vlan.items():
         vlanId.append(key)
 
+    if datastore["fc"] == False:
+        print("###################################")
+        print("#      Datastore Selection        #")
+        print("###################################")
+        print()
+        datastoreInp = click.prompt("Is the Datastore NFS or iSCSI: ", default = "NFS")
+
+        while True:
+            if datastoreInp ==  "":
+                print ("No datastore method slected")
+                break
+            elif datastoreInp.lower() == "nfs": # or datastoreInp == "NFS":
+                datastore["nfs"]= True
+                break
+            elif datastoreInp.lower() == "isci":
+                datastore["isci"]
+                break
+            else:
+                print("A valid entry is needed")
     #mgmt VLAN
     #mgmtVlan = vlan[input("Select the Managment Vlan: " + str(vlanId))]
+    print()
+    print("###################################")
+    print("#        Vlans Selection          #")
+    print("###################################")
+    print()
     mgmtVlan = input("Select the Managment Vlan: " + str(vlanId) + "[Press Enter if None] ")
     while True:
         if mgmtVlan == "":
@@ -330,24 +358,46 @@ def vnic(flexPod, vlan):
                 pass
             break
     #NFS VLAN
-    nfsVlan = input("Select the NFS Vlan: " + str(vlanId) + "[Press Enter if None] ")
-    while True:
-        if nfsVlan == "":
-            break
-        elif not nfsVlan in vlanId:
-            print("Vlan chosen is not a Configured Vlan")
-            print()
-            nfsVlan = input("Select the NFS Vlan: " + str(vlanId) + "[Press Enter if None] ")
-        else:
-            objectTemp.append({"module": "ucsmsdk.mometa.vnic.VnicLanConnTempl","class": "VnicLanConnTempl","properties": {"parent_mo_or_dn": "org-root", "templ_type":"updating-template", "name":"NFS-A", "redundancy_pair_type":"primary", "ident_pool_name":"MAC-Pool-A", "mtu":"9000", "nw_ctrl_policy_name":"Enable-CDP-LLDP"},"message": "Create VNIC Template","children": [{"module": "ucsmsdk.mometa.vnic.VnicEtherIf","class": "VnicEtherIf","properties": {"default_net":"no", "name":vlan[nfsVlan]},"message": "add Vlan to vnic tempalte"}]})
-            objectTemp.append({"module": "ucsmsdk.mometa.vnic.VnicLanConnTempl","class": "VnicLanConnTempl","properties": {"parent_mo_or_dn": "org-root", "templ_type":"updating-template", "name":"NFS-B", "redundancy_pair_type":"secondary", "ident_pool_name":"MAC-Pool-B","peer_redundancy_templ_name":"NFS-A", "switch_id":"B"},"message": "Create VNIC Template"})
-            try:
-                vlanId.remove(vmotionVlan)
-            except KeyError:
-                pass
-            break
+    nfsVlan = ""
+    if datastore["nfs"] == True:
+        nfsVlan = input("Select the NFS Vlan: " + str(vlanId) + "[Press Enter if None] ")
+        while True:
+            if nfsVlan == "":
+                break
+            elif not nfsVlan in vlanId:
+                print("Vlan chosen is not a Configured Vlan")
+                print()
+                nfsVlan = input("Select the NFS Vlan: " + str(vlanId) + "[Press Enter if None] ")
+            else:
+                objectTemp.append({"module": "ucsmsdk.mometa.vnic.VnicLanConnTempl","class": "VnicLanConnTempl","properties": {"parent_mo_or_dn": "org-root", "templ_type":"updating-template", "name":"NFS-A", "redundancy_pair_type":"primary", "ident_pool_name":"MAC-Pool-A", "mtu":"9000", "nw_ctrl_policy_name":"Enable-CDP-LLDP"},"message": "Create VNIC Template","children": [{"module": "ucsmsdk.mometa.vnic.VnicEtherIf","class": "VnicEtherIf","properties": {"default_net":"no", "name":vlan[nfsVlan]},"message": "add Vlan to vnic tempalte"}]})
+                objectTemp.append({"module": "ucsmsdk.mometa.vnic.VnicLanConnTempl","class": "VnicLanConnTempl","properties": {"parent_mo_or_dn": "org-root", "templ_type":"updating-template", "name":"NFS-B", "redundancy_pair_type":"secondary", "ident_pool_name":"MAC-Pool-B","peer_redundancy_templ_name":"NFS-A", "switch_id":"B"},"message": "Create VNIC Template"})
+                try:
+                    vlanId.remove(nfsVlan)
+                except KeyError:
+                    pass
+                break
+    #iSCSI vlan
+    iscsiVlan = ""
+    if datastore["iscsi"] == True:
+        iscsiVlan =  input("Select the iSCSI Vlan: " + str(vlanId) + "[Press Enter if None] ")
+        while True:
+            if iscsiVlan == "":
+                break
+            elif not iscsiVlan in vlanId:
+                print("Vlan chosen is not a Configured Vlan")
+                print()
+                iscsiVlan = input("Select the iSCSI Vlan: " + str(vlanId) + "[Press Enter if None] ")
+            else:
+                #objectTemp.append()
+                print("this part isn't done yet")
+                try:
+                    vlanId.remove(iscsiVlan)
+                except KeyError:
+                    pass
+                break
+
     #DVS
-    dvs = []
+    dvs= []
     while True:
         dvsInp= input("Select the Data Vlan(s): [Press Enter if done] " + str(vlanId))
         if dvsInp == "":       # If it is a blank line...
@@ -365,20 +415,57 @@ def vnic(flexPod, vlan):
             if not vlanId:
                 break
 
+    if dvs:
+        for vlanName in dvs:
+            dvsChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEtherIf","class": "VnicEtherIf","properties": {"default_net":"no", "name":vlanName},"message": "add Vlan to vnic tempalte"})
 
-    for vlanName in dvs:
-        dvsChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEtherIf","class": "VnicEtherIf","properties": {"default_net":"no", "name":vlanName},"message": "add Vlan to vnic tempalte"})
 
-
-    print (dvsChildren)
+    #print (dvsChildren)
 
     dvsObject = {"module": "ucsmsdk.mometa.vnic.VnicLanConnTempl","class": "VnicLanConnTempl","properties": {"parent_mo_or_dn": "org-root", "templ_type":"updating-template", "name":"DVS-Template-A", "redundancy_pair_type":"primary", "ident_pool_name":"MAC-Pool-A", "mtu":"9000", "nw_ctrl_policy_name":"Enable-CDP-LLDP"},"message": "Create VNIC Template","children": []}
     dvsObject["children"]=dvsChildren
     objectTemp.append(dvsObject)#add objects
     objectTemp.append({"module": "ucsmsdk.mometa.vnic.VnicLanConnTempl","class": "VnicLanConnTempl","properties": {"parent_mo_or_dn": "org-root", "templ_type":"updating-template", "name":"DVS-Template-B", "redundancy_pair_type":"secondary", "ident_pool_name":"MAC-Pool-B","peer_redundancy_templ_name":"DVS-Template-A", "switch_id":"B"},"message": "Create VNIC Template"})
 
+    #LAN Conn policy
+    lanConnPolicyChildren = []
+    order = 0
+    connPolcyObject = {"module": "ucsmsdk.mometa.vnic.VnicLanConnPolicy","class": "VnicLanConnPolicy","properties": {"parent_mo_or_dn": "org-root", "name":"FC-Boot"},"message": "Create Lan Connectivity Policy","children": []}
+    if mgmtVlan:
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"name":"0" + str(order) + "-Infra-A", "nw_templ_name":"Infra-A"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"switch_id":"B", "name":"0" + str(order) + "-Infra-B", "nw_templ_name":"Infra-B"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+    if vmotionVlan:
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"name":"0" + str(order) + "-vMotion-A", "nw_templ_name":"vMotion-A"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"switch_id":"B", "name":"0" + str(order) + "-vMotion-B", "nw_templ_name":"vMotion-B"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+    if dvs:
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"name":"0" + str(order) + "-DVS-Template-A", "nw_templ_name":"DVS-Template-A"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"switch_id":"B", "name":"0" + str(order) + "-DVS-Template-B", "nw_templ_name":"DVS-Template-B"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+    if nfsVlan:
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"name":"0" + str(order) + "-NFS-A", "nw_templ_name":"NFS-A"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"switch_id":"B", "name":"0" + str(order) + "-NFS-B", "nw_templ_name":"NFS-B"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+    if iscsiVlan:
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"name":"0" + str(order) + "-iSCSI-A", "nw_templ_name":"iSCSI-A"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+        lanConnPolicyChildren.append({"module": "ucsmsdk.mometa.vnic.VnicEther","class": "VnicEther","properties": {"adaptor_profile_name":"VMWare", "order":order,"switch_id":"B", "name":"0" + str(order) + "-iSCSI-B", "nw_templ_name":"iSCSI-B"},"message": "add to Lan Conn Policy"})
+        order = order + 1
+
+    #Boot Policy
+    objectTemp.append({"module":"ucsmsdk.mometa.lsboot.LsbootPolicy","class":"LsbootPolicy","properties":{"parent_mo_or_dn":"org-root","name":"Boot-Local-Drive"},"message":"create Boot Policy","children":[{"module":"ucsmsdk.mometa.lsboot.LsbootStorage","class":"LsbootStorage","properties":{"order":"3"},"message":"Boot Policy","children":[{"module":"ucsmsdk.mometa.lsboot.LsbootStorage","class":"LsbootStorage","message":"Boot Policy","children":[{"module":"ucsmsdk.mometa.lsboot.LsbootEmbeddedLocalDiskImage","class":"LsbootEmbeddedLocalDiskImage","properties":{"order":"2"},"message":"Boot Policy"},{"module":"ucsmsdk.mometa.lsboot.LsbootUsbFlashStorageImage","class":"LsbootUsbFlashStorageImage","properties":{"order":"3"},"message":"Boot Policy"},{"module":"ucsmsdk.mometa.lsboot.LsbootLocalDiskImage","class":"LsbootLocalDiskImage","properties":{"order":"4"},"message":"Boot Policy","children":[{"module":"ucsmsdk.mometa.lsboot.LsbootLocalDiskImagePath","class":"LsbootLocalDiskImagePath","properties":{"type":"primary"},"message":"Boot Policy"}]}]}]}]})
+
+    #Serivce Profile template
+    objectTemp.append({"module":"ucsmsdk.mometa.ls.LsServer","class":"LsServer","properties":{"parent_mo_or_dn":"org-root","name":"VM-Host-Infra","boot_policy_name":"Boot-Local-Drive","ext_ip_state":"pooled","bios_profile_name":"VM-Host","power_policy_name":"No-Power-Cap","maint_policy_name":"default","host_fw_policy_name":"not_defalt","ident_pool_name":"UUID-Pool","type":"updating-template"},"message":"create Serivce Profile Template","children":[{"module":"ucsmsdk.mometa.storage.StorageLocalDiskConfigDef","class":"StorageLocalDiskConfigDef","properties":{"protect_config":"yes","name":"","descr":"","flex_flash_raid_reporting_state":"enable","flex_flash_state":"enable","policy_owner":"local","mode":"raid-striped","flex_flash_removable_state":"no-change"}},{"module":"ucsmsdk.mometa.vnic.VnicConnDef","class":"VnicConnDef","properties":{"san_conn_policy_name":"FC-Boot","lan_conn_policy_name":"FC-Boot"}},{"module":"ucsmsdk.mometa.vnic.VnicEther","class":"VnicEther","properties":{"cdn_prop_in_sync":"yes","nw_ctrl_policy_name":"","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","name":"00-Infra-A","order":"1","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","mtu":"1500","nw_templ_name":"","addr":"derived"}},{"module":"ucsmsdk.mometa.vnic.VnicEther","class":"VnicEther","properties":{"cdn_prop_in_sync":"yes","nw_ctrl_policy_name":"","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","name":"01-Infra-B","order":"2","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","mtu":"1500","nw_templ_name":"","addr":"derived"}},{"module":"ucsmsdk.mometa.vnic.VnicEther","class":"VnicEther","properties":{"cdn_prop_in_sync":"yes","nw_ctrl_policy_name":"","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","name":"02-vMotion-A","order":"3","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","mtu":"1500","nw_templ_name":"","addr":"derived"}},{"module":"ucsmsdk.mometa.vnic.VnicEther","class":"VnicEther","properties":{"cdn_prop_in_sync":"yes","nw_ctrl_policy_name":"","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","name":"03-vMotion-B","order":"4","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","mtu":"1500","nw_templ_name":"","addr":"derived"}},{"module":"ucsmsdk.mometa.vnic.VnicEther","class":"VnicEther","properties":{"cdn_prop_in_sync":"yes","nw_ctrl_policy_name":"","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","name":"04-DVS-A","order":"5","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","mtu":"1500","nw_templ_name":"","addr":"derived"}},{"module":"ucsmsdk.mometa.vnic.VnicEther","class":"VnicEther","properties":{"cdn_prop_in_sync":"yes","nw_ctrl_policy_name":"","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","name":"05-DVS-B","order":"6","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","mtu":"1500","nw_templ_name":"","addr":"derived"}},{"module":"ucsmsdk.mometa.vnic.VnicFcNode","class":"VnicFcNode","properties":{"ident_pool_name":"node-default","addr":"pool-derived"}},{"module":"ucsmsdk.mometa.vnic.VnicFc","class":"VnicFc","properties":{"cdn_prop_in_sync":"yes","addr":"derived","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","pers_bind":"disabled","order":"7","pers_bind_clear":"no","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","max_data_field_size":"2048","nw_templ_name":"","name":"Fabric-A"}},{"module":"ucsmsdk.mometa.vnic.VnicFc","class":"VnicFc","properties":{"cdn_prop_in_sync":"yes","addr":"derived","admin_host_port":"ANY","admin_vcon":"any","stats_policy_name":"default","admin_cdn_name":"","switch_id":"A","pin_to_group_name":"","pers_bind":"disabled","order":"8","pers_bind_clear":"no","qos_policy_name":"","adaptor_profile_name":"","ident_pool_name":"","cdn_source":"vnic-name","max_data_field_size":"2048","nw_templ_name":"","name":"Fabric-B"}},{"module":"ucsmsdk.mometa.fabric.FabricVCon","class":"FabricVCon","properties":{"placement":"physical","fabric":"NONE","share":"shared","select":"all","transport":"ethernet,fc","id":"1","inst_type":"auto"}},{"module":"ucsmsdk.mometa.fabric.FabricVCon","class":"FabricVCon","properties":{"placement":"physical","fabric":"NONE","share":"shared","select":"all","transport":"ethernet,fc","id":"1","inst_type":"auto"}},{"module":"ucsmsdk.mometa.fabric.FabricVCon","class":"FabricVCon","properties":{"placement":"physical","fabric":"NONE","share":"shared","select":"all","transport":"ethernet,fc","id":"2","inst_type":"auto"}},{"module":"ucsmsdk.mometa.fabric.FabricVCon","class":"FabricVCon","properties":{"placement":"physical","fabric":"NONE","share":"shared","select":"all","transport":"ethernet,fc","id":"3","inst_type":"auto"}},{"module":"ucsmsdk.mometa.fabric.FabricVCon","class":"FabricVCon","properties":{"placement":"physical","fabric":"NONE","share":"shared","select":"all","transport":"ethernet,fc","id":"4","inst_type":"auto"}},{"module":"ucsmsdk.mometa.ls.LsPower","class":"LsPower","properties":{"state":"admin-down"}},{"module":"ucsmsdk.mometa.mgmt.MgmtInterface","class":"MgmtInterface","properties":{"ip_v4_state":"none","mode":"in-band","ip_v6_state":"none"},"children":[{"module":"ucsmsdk.mometa.mgmt.MgmtVnet","class":"MgmtVnet","properties":{"id":"1","name":""}}]}]})
+
+
     flexPod['objects'] = objectTemp
-    return(flexPod)
+    return(flexPod, datastore)
 
 #def dummy(flexPod):
 #    objectTemp = flexPod['objects']
@@ -393,26 +480,35 @@ if __name__=='__main__':
 
     flexPod = {"connection": {"module": "ucsmsdk.ucshandle","class": "UcsHandle","commit-buffer": True,"properties": {"ip": "","username": "admin","password": "","secure": True}},"objects": []}
     vlan = {}
-#    try:
-#        ip = ipaddress.ip_address(input('what is the IP of the UCSM? ' ))
-#        flexPod["connection"]["properties"]["ip"] = str(ip)
-#    except ValueError:
-#        print('address/netmask is invalid: %s' % ip)
-#    except:
-#        print('Usage : %s  ip' % ip)
+    datastore = {
+      "nfs": False,
+      "iscsi": False,
+      "fc": False
+    }
 
-#    flexPod["connection"]["properties"]["username"] = click.prompt('what is the username for the UCSM?', default = "admin" )
-#    flexPod["connection"]["properties"]["password"] = input('what is the password for the UCSM? ' )
+#    ip =  ipaddress.ip_address(input('what is the IP of the UCSM? ' ))
+#    flexPod["connection"]["properties"]["ip"] = str(ip)
+
+    try:
+        ip = ipaddress.ip_address(input('what is the IP of the UCSM? ' ))
+        flexPod["connection"]["properties"]["ip"] = str(ip)
+    except ValueError:
+        print('address/netmask is invalid: %s' % ip)
+    except:
+        print('Usage : %s  ip' % ip)
+
+    flexPod["connection"]["properties"]["username"] = click.prompt('what is the username for the UCSM?', default = "admin" )
+    flexPod["connection"]["properties"]["password"] = input('what is the password for the UCSM? ' )
 
     if click.confirm('is this flexpod using FC? ', default = False):
+        datastore["fc"] = True
         fc(flexPod)
-    #adminPolicies(flexPod)
-#    ethernetPort(flexPod)  #configure ethernet ports
-#    pools(flexPod) #configure Mac/uuid Pools
-#    print(vlan)
+    adminPolicies(flexPod)
+    ethernetPort(flexPod)  #configure ethernet ports
+    pools(flexPod) #configure Mac/uuid Pools
     vlans(flexPod, vlan)  #configure VLANs
-    vnic(flexPod, vlan)  #configure VLANs
-    print(vlan)
+    vnic(flexPod, vlan, datastore)  #configure VLANs
+
 
     with open("customFlexPod.json", "w") as write_file:
         json.dump(flexPod, write_file)
